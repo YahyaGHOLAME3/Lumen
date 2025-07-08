@@ -34,8 +34,8 @@ and modules by files
 
 
 ##### Roadmap and TODOs
-- [ ] Expand, test, and merge the "owasp" branch with more web application attacks and scans ([#28](https://github.com/evyatarmeged/Lumensues/28))
-- [ ] Support more providers for vulnerable storage scan ([#27](https://github.com/evyatarmeged/Lumensues/27))
+- [ ] Expand, test, and merge the "owasp" branch with more web application attacks and scans
+- [ ] Support more providers for vulnerable storage scan
 - [ ] Add more WAFs, better detection
 - [ ] Support multiple hosts (read from file)
 - [ ] Rate limit evasion
@@ -64,10 +64,10 @@ pip install lumen-scanner
 # To run:
 lumen [OPTIONS]
 ```
-Please note Lumenquires Python3.5+ so may need to use `pip3 install Lumenanner`.<br>
+Please note Lumenquires Python3.5+ so may need to use `pip3 install lumen`.<br>
 You can also clone the GitHub repository for the latest features and changes:<br>
 ```
-git clone https://github.com/evyatarmeged/Lument
+git clone https://github.com/evyatarmeged/Lumen
 cd lumen
 python setup.py install # Subsequent changes to the source code will not be reflected in calls to Lumenen this is used
 # Or
@@ -142,20 +142,5 @@ Options:
 ```
 
 ### Screenshots
-![poc2](https://image.ibb.co/iyLreJ/aaaaaaaaaaaaa.png)<br>
 
-**Web application data including vulnerable S3 bucket:**<br>
-![somepoc](https://image.ibb.co/m6b3Jz/s3.png)
-
-**[HTB](https://www.hackthebox.eu/) challenge example scan:**<br>
-![poc](https://image.ibb.co/bGKTRy/bbbbbbb.png)<br>
-
-**Nmap vulners scan results:**<br>
-![vulnerspoc](https://image.ibb.co/iaOMyU/nmap_vulners_poc.png)<br>
-
-**Results folder tree after a scan:**<br>
-![poc3](https://image.ibb.co/iyaCJd/poc3.png)
-
-### Contributing
-Any and all contributions, issues, features and tips are welcome.
 # Lumen
