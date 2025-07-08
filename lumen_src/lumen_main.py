@@ -37,7 +37,6 @@ def intro(logger):
 '--------------------------------------------------------------'
 {}
 
-4841434b414c4c5448455448494e4753
 -------------------------------------------------------------------
     """.format(COLOR.GRAY, COLOR.RESET))
 
@@ -190,7 +189,7 @@ def main(target,
 
         if not skip_health_check:
             try:
-                HelpUtilities.validate_target_is_up(host)   
+                HelpUtilities.validate_target_is_up(host)
             except LumenException as err:
                 logger.critical("{}{}{}".format(COLOR.RED, str(err), COLOR.RESET))
                 exit(42)
