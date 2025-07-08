@@ -1,11 +1,9 @@
 #  Lumen
 
 #### Offensive Security Tool for Reconnaissance and Information Gathering
-![Build Status](https://travis-ci.org/evyatarmeged/Lumeng?branch=master)
-![license](https://img.shields.io/github/license/mashape/apistatus.svg)
 ![os](https://img.shields.io/badge/OS-Linux,%20macOS-yellow.svg)
 ![pythonver](https://img.shields.io/badge/python-3.5%2B-blue.svg)
-![Lumen](https://img.shields.io/badge/version-0.8.5-lightgrey.svg)
+![Lumen](https://img.shields.io/badge/version-0.1.0-lightgrey.svg)
 
 ##### Features
 - [x] DNS details
