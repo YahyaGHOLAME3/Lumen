@@ -10,6 +10,7 @@ from lumen_src.utils.request_handler import RequestHandler
 from lumen_src.utils.logger import SystemOutLogger
 from lumen_src.utils.help_utils import HelpUtilities
 from lumen_src.lib.fuzzer import URLFuzzer
+#from lumen_src.utils.nikto import Nikto
 from lumen_src.lib.host import Host
 from lumen_src.lib.scanner import Scanner, NmapScan, NmapVulnersScan, VulnersScanner
 from lumen_src.lib.sub_domain import SubDomainEnumerator
@@ -19,22 +20,27 @@ from lumen_src.lib.tls import TLSHandler
 from lumen_src.lib.web_app import WebApplicationScanner
 
 # Set path for relative access to builtin files.
+
 MY_PATH = os.path.abspath(os.path.dirname(__file__))
 
 
 def intro(logger):
     logger.info("""{}
-.--------------------------------------------------------------.
-|                                                              |
-|  ___       ___  ___  _____ ______   _______   ________       |
-| |\  \     |\  \|\  \|\   _ \  _   \|\  ___ \ |\   ___  \     |
-| \ \  \    \ \  \\\  \ \  \\\__\ \  \ \   __/|\ \  \\ \  \    |
-|  \ \  \    \ \  \\\  \ \  \\|__| \  \ \  \_|/_\ \  \\ \  \   |
-|   \ \  \____\ \  \\\  \ \  \    \ \  \ \  \_|\ \ \  \\ \  \  |
-|    \ \_______\ \_______\ \__\    \ \__\ \_______\ \__\\ \__\ |
-|     \|_______|\|_______|\|__|     \|__|\|_______|\|__| \|__| |
-|                                                              |
-'--------------------------------------------------------------'
++-----------------------------------------------------------------------+
+|                                                                       |
+|                    ___           ___           ___           ___      |
+|                   /__/\         /__/\         /  /\         /__/\     |
+|                   \  \:\       |  |::\       /  /:/_        \  \:\    |
+|  ___     ___       \  \:\      |  |:|:\     /  /:/ /\        \  \:\   |
+| /__/\   /  /\  ___  \  \:\   __|__|:|\:\   /  /:/ /:/_   _____\__\:\  |
+| \  \:\ /  /:/ /__/\  \__\:\ /__/::::| \:\ /__/:/ /:/ /\ /__/::::::::\ |
+|  \  \:\  /:/  \  \:\ /  /:/ \  \:\~~\__\/ \  \:\/:/ /:/ \  \:\~~\~~\/ |
+|   \  \:\/:/    \  \:\  /:/   \  \:\        \  \::/ /:/   \  \:\  ~~~  |
+|    \  \::/      \  \:\/:/     \  \:\        \  \:\/:/     \  \:\      |
+|     \__\/        \  \::/       \  \:\        \  \::/       \  \:\     |
+|                   \__\/         \__\/         \__\/         \__\/     |
+|                                                                       |
++-----------------------------------------------------------------------+
 {}
 
 -------------------------------------------------------------------
@@ -52,16 +58,16 @@ def intro(logger):
                                    " A proxy from the list will be chosen at random for each request."
                                    " Slows total runtime")
 @click.option("-c", "--cookies", help="Comma separated cookies to add to the requests. "
-                                      "Should be in the form of key:value\n"
-                                      "Example: PHPSESSID:12345,isMobile:false")
+                                        "Should be in the form of key:value\n"
+                                        "Example: PHPSESSID:12345,isMobile:false")
 @click.option("--proxy", help="Proxy address to route HTTP traffic through. Slows total runtime")
 @click.option("-w", "--wordlist", default=os.path.join(MY_PATH, "wordlists/fuzzlist"),
-              help="Path to wordlist that would be used for URL fuzzing")
+                help="Path to wordlist that would be used for URL fuzzing")
 @click.option("-T", "--threads", default=25,
               help="Number of threads to use for URL Fuzzing/Subdomain enumeration. Default: 25")
 @click.option("--ignored-response-codes", default="302,400,401,402,403,404,503,504",
-              help="Comma separated list of HTTP status code to ignore for fuzzing."
-                   " Defaults to: 302,400,401,402,403,404,503,504")
+                help="Comma separated list of HTTP status code to ignore for fuzzing."
+                    " Defaults to: 302,400,401,402,403,404,503,504")
 @click.option("--subdomain-list", default=os.path.join(MY_PATH, "wordlists/subdomains"),
               help="Path to subdomain list file that would be used for enumeration")
 @click.option("-sc", "--scripts", is_flag=True, help="Run Nmap scan with -sC flag")
@@ -86,6 +92,9 @@ def intro(logger):
 @click.option("-q", "--quiet", is_flag=True, help="Do not output to stdout")
 @click.option("-o", "--outdir", default="Lumen_scan_results",
               help="Directory destination for scan output")
+#@click.option("--nikto", is_flag=True,
+              #help="Run Nikto vulnerability scan in addition to default checks")
+
 def main(target,
          tor_routing,
          proxy_list,
@@ -213,6 +222,12 @@ def main(target,
                 nmap_thread = threading.Thread(target=Scanner.run, args=(nmap_scan,))
                 # Run Nmap scan in the background. Can take some time
                 nmap_thread.start()
+        if not skip_nmap_scan:
+            if nmap_thread.is_alive():
+                logger.info("{} All scans done. Waiting for Nmap scan to wrap up…".format(
+                    COLORED_COMBOS.INFO))
+                while nmap_thread.is_alive():
+                    time.sleep(15)
 
         # Run first set of checks - TLS, Web/WAF Data, DNS data
         waf = WAF(host)
