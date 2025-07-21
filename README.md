@@ -1,9 +1,15 @@
 #  Lumen
 
 #### Offensive Security Tool for Reconnaissance and Information Gathering
+
+![alt text](https://github.com/[username]/[reponame]/blob/[branch]/image.jpg?raw=true)
+
 ![os](https://img.shields.io/badge/OS-Linux,%20macOS-yellow.svg)
 ![pythonver](https://img.shields.io/badge/python-3.5%2B-blue.svg)
 ![Lumen](https://img.shields.io/badge/version-0.1.0-lightgrey.svg)
+
+
+
 
 ##### Features
 - [x] DNS details
@@ -142,5 +148,3 @@ Options:
 ```
 
 ### Screenshots
-
-# Lumen
