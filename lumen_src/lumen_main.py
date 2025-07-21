@@ -19,6 +19,7 @@ from lumen_src.lib.waf import WAF
 from lumen_src.lib.tls import TLSHandler
 from lumen_src.lib.web_app import WebApplicationScanner
 
+
 # Set path for relative access to builtin files.
 
 MY_PATH = os.path.abspath(os.path.dirname(__file__))
@@ -92,8 +93,7 @@ def intro(logger):
 @click.option("-q", "--quiet", is_flag=True, help="Do not output to stdout")
 @click.option("-o", "--outdir", default="Lumen_scan_results",
               help="Directory destination for scan output")
-#@click.option("--nikto", is_flag=True,
-              #help="Run Nikto vulnerability scan in addition to default checks")
+@click.option("--subdomain-cve-scan", is_flag=True, help="Parse url_fuzz.txt and scan every hostname for CVEs, writing cve_subdomains.txt")
 
 def main(target,
          tor_routing,
@@ -119,7 +119,8 @@ def main(target,
          skip_nmap_scan,
          # delay,
          outdir,
-         quiet):
+         quiet,
+         subdomain_cve_scan):
     try:
         # ------ Arg validation ------
         # Set logging level and Logger instance
@@ -226,8 +227,7 @@ def main(target,
             if nmap_thread.is_alive():
                 logger.info("{} All scans done. Waiting for Nmap scan to wrap up…".format(
                     COLORED_COMBOS.INFO))
-                while nmap_thread.is_alive():
-                    time.sleep(15)
+                nmap_thread.join()  # Improved: Use join() instead of sleep loop for efficiency
 
         # Run first set of checks - TLS, Web/WAF Data, DNS data
         waf = WAF(host)
@@ -265,12 +265,21 @@ def main(target,
             if nmap_thread.is_alive():
                 logger.info("{} All scans done. Waiting for Nmap scan to wrap up. "
                             "Time left may vary depending on scan type and port range".format(COLORED_COMBOS.INFO))
-
-                while nmap_thread.is_alive():
-                    time.sleep(15)
+                nmap_thread.join()  # Improved: Use join() instead of sleep loop for efficiency
 
         logger.info("\n{}### Lumen scan finished ###{}\n".format(COLOR.GRAY, COLOR.RESET))
         os.system("stty sane")
+
+        SubdomainCVEScanner = None  # Placeholder in case the condition is False
+        if subdomain_cve_scan:
+            from lumen_src.lib.subdomain_cve_scanner import SubdomainCVEScanner
+
+        if SubdomainCVEScanner is not None:
+            SubdomainCVEScanner(target_root=target).scan()
+        else:
+            # Optional: Log or handle the case where scanning is skipped
+            logger.info("Subdomain CVE scan skipped based on conditions.")  # Improved: Use logger instead of print for consistency
+
 
     except KeyboardInterrupt:
         print("{}Keyboard Interrupt detected. Exiting{}".format(COLOR.RED, COLOR.RESET))
@@ -278,6 +287,5 @@ def main(target,
         os.system("stty sane")
         exit(42)
 
-
 if __name__ == "__main__":
-    main()
+        main()

@@ -8,11 +8,6 @@ from lumen_src.utils.request_handler import RequestHandler
 from lumen_src.utils.help_utils import HelpUtilities
 from lumen_src.utils.logger import Logger
 
-
-# Really wanted to use Aiohttp, doesn't play nice with proxies or TOR, disconnects unexpectedly, etc.
-# Going threaded on this one
-
-
 class URLFuzzer:
 
     def __init__(self,

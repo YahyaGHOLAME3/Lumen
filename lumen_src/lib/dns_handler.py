@@ -1,38 +1,80 @@
-from dns import resolver
+from dns import resolver, exception
+import time
 from asyncio.subprocess import PIPE, create_subprocess_exec
 from requests.exceptions import ConnectionError
 from lumen_src.utils.help_utils import HelpUtilities
 from lumen_src.utils.exceptions import LumenException
 from lumen_src.utils.logger import Logger
 from lumen_src.utils.coloring import COLOR, COLORED_COMBOS
+from requests_doh import DNSOverHTTPSSession  # Requires pip install requests-doh
 
-
-# noinspection PyUnboundLocalVariable
 class DNSHandler:
-    """Handles DNS queries and lookups"""
-
     resolver = resolver.Resolver()
 
     @classmethod
-    def query_dns(cls, domains, records):
-        """
-        Query DNS records for host.
-        :param domains: Iterable of domains to get DNS Records for
-        :param records: Iterable of DNS records to get from domain.
-        """
+    def set_nameservers(cls, nameservers):
+        cls.resolver.nameservers = nameservers
+
+    @classmethod
+    def query_dns(cls, domains, records, use_tcp=False, follow_cname=True):
         results = {k: set() for k in records}
         for record in records:
             for domain in domains:
                 try:
-                    answers = cls.resolver.query(domain, record)
+                    answers = cls.resolver.resolve(domain, record, tcp=use_tcp)
                     for answer in answers:
-                        # Add value to record type
-                        results.get(record).add(answer)
-                except (resolver.NoAnswer, resolver.NXDOMAIN, resolver.NoNameservers):
-                    # Type of record doesn't fit domain or no answer from ns
+                        results.get(record).add(str(answer))
+                        if follow_cname and record == 'CNAME':
+                            # Recursively query the CNAME target
+                            cname_results = cls.query_dns([str(answer)], records, use_tcp)
+                            results.update(cname_results)
+                except (resolver.NoAnswer, resolver.NXDOMAIN, resolver.NoNameservers, exception.Timeout):
                     continue
-
         return {k: v for k, v in results.items() if v}
+
+    @classmethod
+    def robust_query_dns(cls, domains, records, max_retries=3):
+        resolvers = [['8.8.8.8', '8.8.4.4'], ['1.1.1.1', '1.0.0.1']]  # Google and Cloudflare
+        for attempt in range(max_retries):
+            try:
+                return cls.query_dns(domains, records)
+            except exception.Timeout:
+                Logger.error(f"DNS Query timed out (attempt {attempt + 1}). Retrying...")
+                cls.set_nameservers(resolvers[attempt % len(resolvers)])
+                time.sleep(2 ** attempt)  # Exponential backoff
+        # Final fallback to DoH
+        Logger.info("Switching to DNS over HTTPS as final fallback...")
+        return cls.query_doh(domains, records)
+
+    @classmethod
+    def query_doh(cls, domains, records):
+        results = {k: set() for k in records}
+        session = DNSOverHTTPSSession(provider='cloudflare')  # Or 'google'
+        for record in records:
+            for domain in domains:
+                try:
+                    # Use session to resolve (adapt based on your needs)
+                    response = session.resolve(domain, rdtype=record)
+                    for answer in response.answer:
+                        results.get(record).add(str(answer))
+                except Exception:
+                    continue
+        return {k: v for k, v in results.items() if v}
+
+    @classmethod
+    def enumerate_subdomains(cls, domain, wordlist_path, records=['A', 'CNAME']):
+        with open(wordlist_path, 'r') as f:
+            subdomains = [f"{line.strip()}.{domain}" for line in f if line.strip()]
+        return cls.robust_query_dns(subdomains, records)
+
+    @classmethod
+    def attempt_zone_transfer(cls, domain, nameserver):
+        try:
+            zone = resolver.zone_for_name(domain, resolver=cls.resolver, tcp=True)
+            return {str(rrset.name): str(rrset) for rrset in zone}
+        except (resolver.NoNameservers, resolver.NXDOMAIN):
+            Logger.error("Zone transfer failed")
+            return {}
 
     @classmethod
     async def grab_whois(cls, host):
@@ -53,8 +95,8 @@ class DNSHandler:
         if process.returncode == 0:
             logger.info("{} {} WHOIS information retrieved".format(COLORED_COMBOS.GOOD, host))
             for line in result.decode().strip().split("\n"):
-                    if ":" in line:
-                        logger.debug(line)
+                if ":" in line:
+                    logger.debug(line)
 
     @classmethod
     async def generate_dns_dumpster_mapping(cls, host, sout_logger):
