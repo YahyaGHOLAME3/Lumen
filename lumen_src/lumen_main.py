@@ -3,6 +3,10 @@ import asyncio
 import threading
 import click
 import os
+import sys
+
+# Add the project root to Python path so lumen_src can be found
+sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
 
 from lumen_src.utils.coloring import COLOR, COLORED_COMBOS
 from lumen_src.utils.exceptions import LumenException, HostHandlerException
