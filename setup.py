@@ -6,7 +6,7 @@ long_description = (here / "README.md").read_text()
 
 setup(
     name="lumen-scanner",
-    version="0.1.1",
+    version="0.8.5",  # Update to match the version in lumen_main.py
     description="Offensive Security Tool for Reconnaissance and Information Gathering",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -27,7 +27,7 @@ setup(
         "xmltodict"
     ],
 
-    include_package_data=True,  # conserver wordlists/* déclarés ci‑dessous
+    include_package_data=True,
     package_data={"lumen_src": ["wordlists/*"]},
 
     entry_points={

@@ -2,11 +2,11 @@
 
 #### Offensive Security Tool for Reconnaissance and Information Gathering
 
-![alt text](https://github.com/[username]/[reponame]/blob/[branch]/image.jpg?raw=true)
 
+![alt text](https://github.com/[username]/[reponame]/blob/[branch]/image.jpg?raw=true)
 ![os](https://img.shields.io/badge/OS-Linux,%20macOS-yellow.svg)
-![pythonver](https://img.shields.io/badge/python-3.5%2B-blue.svg)
-![Lumen](https://img.shields.io/badge/version-0.1.0-lightgrey.svg)
+![pythonver](https://img.shields.io/badge/python-3.9%2B-blue.svg)
+![Lumen](https://img.shields.io/badge/version-0.8.5-lightgrey.svg)
 
 
 
@@ -146,4 +146,3 @@ Options:
   -o, --outdir TEXT              Directory destination for scan output
   --help                         Show this message and exit.
 ```
-
