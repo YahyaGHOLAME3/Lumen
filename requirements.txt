@@ -6,9 +6,9 @@ cryptography==42.0.7
 dnspython==2.6.1
 fake-useragent==1.5.1
 lxml==5.2.1
-python-nmap==0.7.2
+python-nmap==0.7.1
 requests[socks]==2.32.3
-requests-doh==1.0.2
+requests-doh==1.0.0
 rich==13.7.1
 tldextract==5.1.2
 tqdm==4.66.4

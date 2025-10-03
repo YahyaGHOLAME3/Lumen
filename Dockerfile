@@ -26,6 +26,10 @@ RUN pip install --prefix=/install --no-cache-dir -r requirements.txt
 COPY . .
 RUN pip install --prefix=/install --no-cache-dir -e .
 
+# Fetch Nikto once during build stage so runtime image can use it without git
+RUN git clone --depth=1 https://github.com/sullo/nikto.git /opt/nikto \
+    && rm -rf /opt/nikto/.git
+
 
 FROM python:3.11-slim AS runtime
 
@@ -40,16 +44,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     libffi8 \
     nmap \
-    nikto \
     openssl \
     curl \
+    perl \
+    libnet-ssleay-perl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --shell /bin/bash lumen
 WORKDIR /home/lumen/app
 
 COPY --from=builder /install /usr/local
+COPY --from=builder /opt/nikto /opt/nikto
 COPY --chown=lumen:lumen . .
+
+# Provide nikto executable wrapper
+RUN printf '#!/bin/sh\nexec perl /opt/nikto/program/nikto.pl "$@"\n' > /usr/local/bin/nikto \
+    && chmod +x /usr/local/bin/nikto
 
 USER lumen
 

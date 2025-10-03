@@ -44,6 +44,25 @@ lumen example.com
 ```
 Prerequisites: Python 3.10+, Nmap, Nikto, and OpenSSL available in your `PATH`. On macOS install `coreutils` (`brew install coreutils`) to provide `gtimeout`.
 
+### Option 3 – Use the bundled launcher without installing
+If you do not want to install the package into your environment, the repository ships with a thin wrapper that executes the CLI in-place:
+
+```bash
+git clone https://github.com/evyatarmeged/Lumen.git
+cd Lumen
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Optional: add the repo to your PATH or symlink the launcher
+chmod +x lumen
+ln -s "$(pwd)/lumen" ~/.local/bin/lumen  # assuming ~/.local/bin is on PATH
+
+lumen --help
+```
+This keeps the code editable while giving you the same `lumen` command line interface on any machine you clone the project to.
+
 ## Usage
 ```text
 Usage: lumen [OPTIONS] TARGET
