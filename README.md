@@ -1,148 +1,102 @@
-#  Lumen
+# Lumen
 
-#### Offensive Security Tool for Reconnaissance and Information Gathering
+**Offensive Security Tool for Reconnaissance and Information Gathering**
 
-
-![alt text](https://github.com/[username]/[reponame]/blob/[branch]/image.jpg?raw=true)
 ![os](https://img.shields.io/badge/OS-Linux,%20macOS-yellow.svg)
-![pythonver](https://img.shields.io/badge/python-3.9%2B-blue.svg)
-![Lumen](https://img.shields.io/badge/version-0.8.5-lightgrey.svg)
+![pythonver](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+![version](https://img.shields.io/badge/version-0.8.5-lightgrey.svg)
 
+## Highlights
+- Full-scope recon in one run: DNS, WHOIS, TLS fingerprinting, WAF detection, web metadata, and storage hunting
+- Concurrent Nmap discovery plus the `vulners.nse` script and Nikto web scanning – all enabled by default
+- Dir and file brute-forcing with a configurable fuzzer and smart response filtering
+- Rich subdomain enumeration via SAN parsing, Google dorking, DNSDumpster, and brute-force wordlists
+- Flexible routing (Tor/proxy support) and structured per-target output for easy triage
+- Built with asyncio and thread pools to keep scans fast without sacrificing coverage
 
+## Quick Start
 
+### Option 1 – Docker
+```bash
+# Build the image
+docker build -t lumen-scan .
 
-##### Features
-- [x] DNS details
-- [x] DNS visual mapping using DNS dumpster
-- [x] WHOIS information
-- [x] TLS Data - supported ciphers, TLS versions,
-certificate details and SANs
-- [x] Port Scan
-- [x] Services and scripts scan
-- [x] URL fuzzing and dir/file detection
-- [x] Subdomain enumeration - uses Google dorking, DNS dumpster queries,
- SAN discovery and bruteforce
-- [x] Web application data retrieval:<br>
-  - CMS detection
-  - Web server info and X-Powered-By
-  - robots.txt and sitemap extraction
-  - Cookie inspection
-  - Extracts all fuzzable URLs
-  - Discovers HTML forms
-  - Retrieves all Email addresses
-  - Scans target for vulnerable S3 buckets and enumerates them
-  for sensitive files
-- [x] Detects known WAFs
-- [x] Supports anonymous routing through Tor/Proxies
-- [x] Uses asyncio for improved performance
-- [x] Saves output to files - separates targets by folders
-and modules by files
-
-
-##### Roadmap and TODOs
-- [ ] Expand, test, and merge the "owasp" branch with more web application attacks and scans
-- [ ] Support more providers for vulnerable storage scan
-- [ ] Add more WAFs, better detection
-- [ ] Support multiple hosts (read from file)
-- [ ] Rate limit evasion
-- [ ] IP ranges support
-- [ ] CIDR notation support
-- [ ] More output formats (JSON at the very least)
-
-
-### About
-Lumen a tool made for reconnaissance and information gathering with an emphasis on simplicity.<br> It will do everything from
-fetching DNS records, retrieving WHOIS information, obtaining TLS data, detecting WAF presence and up to threaded dir busting and
-subdomain enumeration. Every scan outputs to a corresponding file.<br>
-
-As most of Lumenscans are independent and do not rely on each other's results,
-it utilizes Python's asyncio to run most scans asynchronously.<br>
-
-Lumenpports Tor/proxy for anonymous routing. It uses default wordlists (for URL fuzzing and subdomain discovery)
-from the amazing [SecLists](https://github.com/danielmiessler/SecLists) repository but different lists can be passed as arguments.<br>
-
-For more options - see "Usage".
-
-### Installation
-For the latest stable version:<br>
+# Run a scan (outputs land in ./Lumen_scan_results on the host)
+docker run --rm \
+  -v "$(pwd)/Lumen_scan_results:/home/lumen/app/Lumen_scan_results" \
+  lumen-scan example.com
 ```
-pip install lumen-scanner
-# To run:
-lumen [OPTIONS]
-```
-Please note Lumenquires Python3.5+ so may need to use `pip3 install lumen`.<br>
-You can also clone the GitHub repository for the latest features and changes:<br>
-```
-git clone https://github.com/evyatarmeged/Lumen
-cd lumen
-python setup.py install # Subsequent changes to the source code will not be reflected in calls to Lumenen this is used
-# Or
-python setup.py develop # Changes to code will be reflected in calls to Lumenhis can be undone by using python setup.py develop --uninstall
-# Finally
-LumenPTIONS] [TARGET]
-```
-#### macOS
-To support Lumen macOS you need to have gtimeout on your machine.<br>
-gtimeout can be installed by running `brew install coreutils`.
-#### Docker<br>
-```
-# Build the docker image
-docker build -t yahyagholame/lumen .
-# Run a scan, As this a non-root container we need to save the output under the user's home which is /home/Lumencker run --name lumen yahyagholame/lumen:latest  example.com -o /home/lumen
-```
+The container ships with Nmap, Nikto, and other native dependencies pre-installed. Mount an output directory to persist results between runs.
 
-##### Prerequisites
-Lumenes [Nmap](https://github.com/nmap/nmap) to scan ports as well as utilizes some other Nmap scripts
-and features. It is mandatory that you have it installed before running Lumenr>
-[OpenSSL](https://github.com/openssl/openssl) is also used for TLS/SSL scans and should be installed as well.
+### Option 2 – Native Python
+```bash
+git clone https://github.com/evyatarmeged/Lumen.git
+cd Lumen
 
-### Usage
+python3 -m venv .venv
+source .venv/bin/activate
+
+pip install --upgrade pip
+pip install -r requirements.txt
+pip install -e .
+
+lumen example.com
 ```
+Prerequisites: Python 3.10+, Nmap, Nikto, and OpenSSL available in your `PATH`. On macOS install `coreutils` (`brew install coreutils`) to provide `gtimeout`.
 
+## Usage
+```text
 Usage: lumen [OPTIONS] TARGET
 
 Options:
-  --version                      Show the version and exit.
-  -d, --dns-records TEXT         Comma separated DNS records to query.
-                                 Defaults to: A,MX,NS,CNAME,SOA,TXT
-  --tor-routing                  Route HTTP traffic through Tor (uses port
-                                 9050). Slows total runtime significantly
-  --proxy-list TEXT              Path to proxy list file that would be used
-                                 for routing HTTP traffic. A proxy from the
-                                 list will be chosen at random for each
-                                 request. Slows total runtime
-  -c, --cookies TEXT             Comma separated cookies to add to the
-                                 requests. Should be in the form of key:value
-                                 Example: PHPSESSID:12345,isMobile:false
-  --proxy TEXT                   Proxy address to route HTTP traffic through.
-                                 Slows total runtime
-  -w, --wordlist TEXT            Path to wordlist that would be used for URL
-                                 fuzzing
-  -T, --threads INTEGER          Number of threads to use for URL
-                                 Fuzzing/Subdomain enumeration. Default: 25
-  --ignored-response-codes TEXT  Comma separated list of HTTP status code to
-                                 ignore for fuzzing. Defaults to:
-                                 302,400,401,402,403,404,503,504
-  --subdomain-list TEXT          Path to subdomain list file that would be
-                                 used for enumeration
-  -sc, --scripts                 Run Nmap scan with -sC flag
-  -sv, --services                Run Nmap scan with -sV flag
-  -f, --full-scan                Run Nmap scan with both -sV and -sC
-  -p, --port TEXT                Use this port range for Nmap scan instead of
-                                 the default
-  --vulners-nmap-scan            Perform an NmapVulners scan. Runs instead of
-                                 the regular Nmap scan and is longer.
-  --vulners-path TEXT            Path to the custom nmap_vulners.nse script.If
-                                 not used, Lumenes the built-in script it
-                                 ships with.
-  -fr, --follow-redirects        Follow redirects when fuzzing. Default: False
-                                 (will not follow redirects)
-  --tls-port INTEGER             Use this port for TLS queries. Default: 443
-  --skip-health-check            Do not test for target host availability
-  --no-url-fuzzing               Do not fuzz URLs
-  --no-sub-enum                  Do not bruteforce subdomains
-  --skip-nmap-scan               Do not perform an Nmap scan
-  -q, --quiet                    Do not output to stdout
-  -o, --outdir TEXT              Directory destination for scan output
-  --help                         Show this message and exit.
+  -d, --dns-records TEXT                 Comma separated DNS records to query.
+                                         Defaults to: A,MX,NS,CNAME,SOA,TXT
+  --tor-routing                          Route HTTP traffic through Tor (port
+                                         9050)
+  --proxy-list TEXT                      Load-balanced proxy list for HTTP(S)
+                                         requests
+  --proxy TEXT                           Single proxy to route HTTP(S) traffic
+  -c, --cookies TEXT                     Comma separated cookies (key:value)
+  -w, --wordlist TEXT                    Wordlist for URL fuzzing
+  -T, --threads INTEGER                  Worker threads for fuzzing/subdomain
+                                         enumeration (default: 25)
+  --ignored-response-codes TEXT          HTTP codes to ignore during fuzzing
+                                         (default: 302,400,401,402,403,404,503,504)
+  --subdomain-list TEXT                  Wordlist for subdomain brute-forcing
+  -sc, --scripts                         Add Nmap -sC
+  -sv, --services                        Add Nmap -sV
+  -f, --full-scan                        Combine -sC and -sV
+  -p, --port TEXT                        Custom port range for Nmap
+  --vulners-nmap-scan / --skip-vulners-nmap-scan
+                                         Run the Nmap vulners script (default:
+                                         enabled)
+  --vulners-path TEXT                    Custom path to vulners.nse
+  --skip-nmap-scan                       Skip the default Nmap discovery scan
+  --nikto-scan / --skip-nikto-scan       Run Nikto against the primary web
+                                         service (default: enabled)
+  -fr, --follow-redirects                Follow redirects during fuzzing
+  --tls-port INTEGER                     Port for TLS checks (default: 443)
+  --skip-health-check                    Do not verify host availability before
+                                         scanning
+  --no-url-fuzzing                       Skip URL fuzzing
+  --no-sub-enum                          Skip subdomain brute-force
+  --subdomain-cve-scan                   Parse url_fuzz.txt and probe each host
+                                         with Nmap + vulners
+  -q, --quiet                            Suppress stdout logging
+  -v, --verbose                          Increase verbosity (-vv for debug)
+  -o, --outdir TEXT                      Output directory (default:
+                                         Lumen_scan_results)
+  --help                                 Show this message and exit
 ```
+All core scanners (Nmap, Nmap + vulners, Nikto, TLS/WAF profiling, URL fuzzing, and subdomain recon) are active by default. Opt out with the `--skip-*`/`--no-*` flags if you need a lighter run.
+
+## Output Layout
+Results are written under `<outdir>/<target>/` and include:
+- `nmap_scan.txt`, `nmap_vulners_scan.txt`, and `nikto_report.html`
+- `web_scan.txt`, `waf.txt`, `tls_report.txt`, `whois.txt`, and other module logs
+- `url_fuzz.txt`, `subdomains.txt`, and optional `cve_subdomains.txt`
+
+These files are plain text/HTML and can be shared with downstream tooling or attached to reports.
+
+## Support & Contributions
+Issues and pull requests are welcome. Please open an issue describing the bug or feature idea before submitting large changes.

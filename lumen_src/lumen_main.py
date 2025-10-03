@@ -14,7 +14,7 @@ from lumen_src.utils.request_handler import RequestHandler
 from lumen_src.utils.logger import SystemOutLogger
 from lumen_src.utils.help_utils import HelpUtilities
 from lumen_src.lib.fuzzer import URLFuzzer
-#from lumen_src.utils.nikto import Nikto
+from lumen_src.lib.test_nikto import Nikto
 from lumen_src.lib.host import Host
 from lumen_src.lib.scanner import Scanner, NmapScan, NmapVulnersScan, VulnersScanner
 from lumen_src.lib.sub_domain import SubDomainEnumerator
@@ -148,8 +148,10 @@ def intro(logger):
 @click.option("-sv", "--services", is_flag=True, help="Run Nmap scan with -sV flag")
 @click.option("-f", "--full-scan", is_flag=True, help="Run Nmap scan with both -sV and -sC")
 @click.option("-p", "--port", help="Use this port range for Nmap scan instead of the default")
-@click.option("--vulners-nmap-scan", is_flag=True, help="Perform an NmapVulners scan. "
-                                                        "Runs instead of the regular Nmap scan and is longer.")
+@click.option("--vulners-nmap-scan/--skip-vulners-nmap-scan",
+              default=True,
+              show_default=True,
+              help="Run the Nmap vulners script alongside the default Nmap scan.")
 @click.option("--vulners-path", default=os.path.join(MY_PATH, "utils/misc/vulners.nse"),
               help="Path to the custom nmap_vulners.nse script."
                    "If not used, Lumen uses the built-in script it ships with.")
@@ -160,6 +162,10 @@ def intro(logger):
 @click.option("--no-url-fuzzing", is_flag=True, help="Do not fuzz URLs")
 @click.option("--no-sub-enum", is_flag=True, help="Do not bruteforce subdomains")
 @click.option("--skip-nmap-scan", is_flag=True, help="Do not perform an Nmap scan")
+@click.option("--nikto-scan/--skip-nikto-scan",
+              default=True,
+              show_default=True,
+              help="Run Nikto against the primary web service.")
 # @click.option("-d", "--delay", default="0.25-1",
 #               help="Min and Max number of seconds of delay to be waited between requests\n"
 #                    "Defaults to Min: 0.25, Max: 1. Specified in the format of Min-Max")
@@ -191,6 +197,7 @@ def main(target,
          no_url_fuzzing,
          no_sub_enum,
          skip_nmap_scan,
+         nikto_scan,
          # delay,
          outdir,
          quiet,
@@ -201,6 +208,7 @@ def main(target,
         # Set logging level and Logger instance
         log_level = HelpUtilities.determine_verbosity(quiet, verbose)
         logger = SystemOutLogger(log_level)
+        logger.set_level(log_level)
         intro(logger)
 
         logger.debug(
@@ -328,39 +336,38 @@ def main(target,
                 logger.critical("{}{}{}".format(COLOR.RED, str(err), COLOR.RESET))
                 exit(42)
 
-        if not skip_nmap_scan:
-            if vulners_nmap_scan:
-                logger.info("\n{} Setting NmapVulners scan to run in the background".format(COLORED_COMBOS.INFO))
-                nmap_vulners_scan = NmapVulnersScan(host=host, port_range=port, vulners_path=vulners_path)
-                nmap_thread = threading.Thread(target=VulnersScanner.run, args=(nmap_vulners_scan,))
-                # Run NmapVulners scan in the background
-                nmap_thread.start()
-                logger.debug("Started NmapVulners thread (port_range=%s, vulners_path=%s)", port, vulners_path)
-            else:
-                logger.info("\n{} Setting Nmap scan to run in the background".format(COLORED_COMBOS.INFO))
-                nmap_scan = NmapScan(
-                    host=host,
-                    port_range=port,
-                    full_scan=full_scan,
-                    scripts=scripts,
-                    services=services)
+        nmap_thread = None
+        vulners_thread = None
 
-                nmap_thread = threading.Thread(target=Scanner.run, args=(nmap_scan,))
-                # Run Nmap scan in the background. Can take some time
-                nmap_thread.start()
-                logger.debug(
-                    "Started Nmap thread (port_range=%s, full_scan=%s, scripts=%s, services=%s)",
-                    port,
-                    full_scan,
-                    scripts,
-                    services
-                )
         if not skip_nmap_scan:
-            if nmap_thread.is_alive():
-                logger.info("{} All scans done. Waiting for Nmap scan to wrap up…".format(
-                    COLORED_COMBOS.INFO))
-                nmap_thread.join()  # Improved: Use join() instead of sleep loop for efficiency
-                logger.debug("Background Nmap thread joined (initial wait)")
+            logger.info("\n{} Setting Nmap scan to run in the background".format(COLORED_COMBOS.INFO))
+            nmap_scan = NmapScan(
+                host=host,
+                port_range=port,
+                full_scan=full_scan,
+                scripts=scripts,
+                services=services)
+
+            nmap_thread = threading.Thread(target=Scanner.run, args=(nmap_scan,))
+            nmap_thread.start()
+            logger.debug(
+                "Started Nmap thread (port_range=%s, full_scan=%s, scripts=%s, services=%s)",
+                port,
+                full_scan,
+                scripts,
+                services
+            )
+        else:
+            logger.debug("Standard Nmap scan skipped by CLI flag")
+
+        if vulners_nmap_scan:
+            logger.info("\n{} Setting Nmap Vulners scan to run in the background".format(COLORED_COMBOS.INFO))
+            nmap_vulners_scan = NmapVulnersScan(host=host, port_range=port, vulners_path=vulners_path)
+            vulners_thread = threading.Thread(target=VulnersScanner.run, args=(nmap_vulners_scan,))
+            vulners_thread.start()
+            logger.debug("Started Nmap Vulners thread (port_range=%s, vulners_path=%s)", port, vulners_path)
+        else:
+            logger.debug("Nmap Vulners scan skipped by CLI flag")
 
         # Run first set of checks - TLS, Web/WAF Data, DNS data
         waf = WAF(host)
@@ -410,26 +417,59 @@ def main(target,
             main_loop.run_until_complete(subdomain_enumerator.run())
             logger.debug("Subdomain enumeration completed")
 
-        if not skip_nmap_scan:
-            if nmap_thread.is_alive():
-                logger.info("{} All scans done. Waiting for Nmap scan to wrap up. "
-                            "Time left may vary depending on scan type and port range".format(COLORED_COMBOS.INFO))
-                nmap_thread.join()  # Improved: Use join() instead of sleep loop for efficiency
-                logger.debug("Background Nmap thread joined (final wait)")
+        if nikto_scan:
+            scheme = host.protocol
+            hostname = host.target
+            port_suffix = ""
+            if host.port not in (80, 443):
+                port_suffix = f":{host.port}"
+            target_url = f"{scheme}://{hostname}{port_suffix}"
+
+            nikto_report = HelpUtilities.get_output_path(f"{host.target}/nikto_report.html")
+            nikto_log = HelpUtilities.get_output_path(f"{host.target}/nikto_scan.txt")
+
+            logger.info("{} Launching Nikto scan against {}".format(COLORED_COMBOS.INFO, target_url))
+            try:
+                nikto_result = Nikto.run_nikto(
+                    target=target_url,
+                    output_file=nikto_report,
+                    log_file=nikto_log,
+                )
+                if nikto_result.ok:
+                    logger.info("{} Nikto scan completed. Report saved to {}".format(
+                        COLORED_COMBOS.GOOD,
+                        nikto_report,
+                    ))
+                else:
+                    logger.warning("{} Nikto scan exited with code {}. Inspect {} for details.".format(
+                        COLORED_COMBOS.BAD,
+                        nikto_result.exit_code,
+                        nikto_log,
+                    ))
+            except RuntimeError as err:
+                logger.error("{} {}".format(COLORED_COMBOS.BAD, err))
+
+        else:
+            logger.debug("Nikto scan disabled by CLI flag")
+
+        if subdomain_cve_scan:
+            from lumen_src.lib.subdomain_cve_scanner import SubdomainCVEScanner
+            target_root = HelpUtilities.get_output_path(host.target)
+            SubdomainCVEScanner(target_root=target_root).scan()
+        else:
+            logger.debug("Subdomain CVE scan skipped by CLI flag")
+
+        for thread, label in ((nmap_thread, "Nmap"), (vulners_thread, "Nmap Vulners")):
+            if thread and thread.is_alive():
+                logger.info("{} Waiting for {} scan to wrap up…".format(
+                    COLORED_COMBOS.INFO,
+                    label,
+                ))
+                thread.join()
+                logger.debug("Background %s thread joined", label.lower())
 
         logger.info("\n{}### Lumen scan finished ###{}\n".format(COLOR.GRAY, COLOR.RESET))
         os.system("stty sane")
-
-        SubdomainCVEScanner = None  # Placeholder in case the condition is False
-        if subdomain_cve_scan:
-            from lumen_src.lib.subdomain_cve_scanner import SubdomainCVEScanner
-
-        if SubdomainCVEScanner is not None:
-            SubdomainCVEScanner(target_root=target).scan()
-        else:
-            # Optional: Log or handle the case where scanning is skipped
-            logger.info("Subdomain CVE scan skipped based on conditions.")  # Improved: Use logger instead of print for consistency
-
 
     except KeyboardInterrupt:
         print("{}Keyboard Interrupt detected. Exiting{}".format(COLOR.RED, COLOR.RESET))
