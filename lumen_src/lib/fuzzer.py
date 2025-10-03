@@ -149,13 +149,14 @@ class URLFuzzer:
         """Create a plain file logger for machine‑readable output."""
         out_path = manual_path or self.csv_path
         out_path = HelpUtilities.get_output_path(str(out_path))
+        self.csv_path = Path(out_path)
         # Ensure directory exists
-        Path(out_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+        self.csv_path.expanduser().parent.mkdir(parents=True, exist_ok=True)
         # Write CSV header if file is new
-        if not Path(out_path).exists():
-            with open(out_path, "w", newline="") as f:
+        if not self.csv_path.exists():
+            with open(self.csv_path, "w", newline="") as f:
                 csv.writer(f).writerow(["code", "url", "redirect"])
-        return Logger(out_path)
+        return Logger(str(self.csv_path))
 
     # ------------------------------------------------------------------
 

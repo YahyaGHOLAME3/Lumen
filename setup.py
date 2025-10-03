@@ -16,15 +16,23 @@ setup(
 
     packages=find_packages(include=["lumen_src", "lumen_src.*"]),
 
-    python_requires=">=3.9",
+    python_requires=">=3.10",
     install_requires=[
-        "beautifulsoup4",
-        "requests[socks]",
-        "dnspython",
-        "lxml",
-        "click",
-        "fake-useragent",
-        "xmltodict"
+        "aiohttp>=3.9",
+        "beautifulsoup4>=4.12",
+        "click>=8.1",
+        "colorama>=0.4",
+        "cryptography>=42.0",
+        "dnspython>=2.6",
+        "fake-useragent>=1.5",
+        "lxml>=5.2",
+        "python-nmap>=0.7",
+        "requests[socks]>=2.32",
+        "requests-doh>=1.0",
+        "rich>=13.7",
+        "tldextract>=5.1",
+        "tqdm>=4.66",
+        "xmltodict>=0.13",
     ],
 
     include_package_data=True,

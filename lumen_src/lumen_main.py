@@ -28,6 +28,75 @@ from lumen_src.lib.web_app import WebApplicationScanner
 
 MY_PATH = os.path.abspath(os.path.dirname(__file__))
 
+DEFAULT_DNS_RECORDS = ("A", "MX", "NS", "CNAME", "SOA", "TXT")
+VALID_DNS_RECORDS = {
+    "A", "AAAA", "AFSDB", "APL", "CAA", "CDNSKEY", "CDS", "CERT", "CNAME",
+    "DHCID", "DLV", "DNAME", "DNSKEY", "DS", "EUI48", "EUI64", "HINFO",
+    "HIP", "IPSECKEY", "KEY", "KX", "LOC", "MX", "NAPTR", "NS", "NSEC",
+    "NSEC3", "NSEC3PARAM", "PTR", "RRSIG", "RP", "SIG", "SOA", "SPF", "SRV",
+    "SSHFP", "SVCB", "TA", "TKEY", "TLSA", "TSIG", "TXT", "URI"
+}
+CLI_PREPROCESS_WARNINGS: list[str] = []
+
+
+def _preprocess_cli_args():
+    """Normalize argv to handle missing option values gracefully."""
+    global CLI_PREPROCESS_WARNINGS
+
+    raw_args = sys.argv[1:]
+    patched: list[str] = []
+    warnings: list[str] = []
+    i = 0
+
+    while i < len(raw_args):
+        arg = raw_args[i]
+
+        # Helper to fetch the next argument if present
+        next_arg = raw_args[i + 1] if i + 1 < len(raw_args) else None
+
+        if arg in ("-d", "--dns-records"):
+            # Support --dns-records=value syntax out of the box
+            if "=" in arg and arg.startswith("--"):
+                patched.append(arg)
+            else:
+                if not next_arg or next_arg.startswith("-"):
+                    patched.extend([arg, ",".join(DEFAULT_DNS_RECORDS)])
+                    warnings.append(
+                        "Option '-d/--dns-records' used without a value; falling back to default records."
+                    )
+                else:
+                    patched.extend([arg, next_arg])
+                    i += 1
+            i += 1
+            continue
+
+        if arg in ("-c", "--cookies"):
+            # Support --cookies=value
+            if "=" in arg and arg.startswith("--"):
+                value = arg.split("=", 1)[1]
+                if value:
+                    patched.append(arg)
+                else:
+                    warnings.append(
+                        "Option '--cookies' provided without a value; ignoring cookies option."
+                    )
+            else:
+                if not next_arg or next_arg.startswith("-"):
+                    warnings.append(
+                        "Option '-c/--cookies' requires key:value pairs; ignoring cookies option."
+                    )
+                else:
+                    patched.extend([arg, next_arg])
+                    i += 1
+            i += 1
+            continue
+
+        patched.append(arg)
+        i += 1
+
+    sys.argv = [sys.argv[0]] + patched
+    CLI_PREPROCESS_WARNINGS = warnings
+
 
 def intro(logger):
     logger.info("""{}
@@ -95,6 +164,7 @@ def intro(logger):
 #               help="Min and Max number of seconds of delay to be waited between requests\n"
 #                    "Defaults to Min: 0.25, Max: 1. Specified in the format of Min-Max")
 @click.option("-q", "--quiet", is_flag=True, help="Do not output to stdout")
+@click.option("-v", "--verbose", count=True, help="Increase output verbosity (use -vv for debug)")
 @click.option("-o", "--outdir", default="Lumen_scan_results",
               help="Directory destination for scan output")
 @click.option("--subdomain-cve-scan", is_flag=True, help="Parse url_fuzz.txt and scan every hostname for CVEs, writing cve_subdomains.txt")
@@ -124,13 +194,25 @@ def main(target,
          # delay,
          outdir,
          quiet,
+         verbose,
          subdomain_cve_scan):
     try:
         # ------ Arg validation ------
         # Set logging level and Logger instance
-        log_level = HelpUtilities.determine_verbosity(quiet)
+        log_level = HelpUtilities.determine_verbosity(quiet, verbose)
         logger = SystemOutLogger(log_level)
         intro(logger)
+
+        logger.debug(
+            "CLI options -> quiet=%s, verbose=%s, follow_redirects=%s, skip_nmap_scan=%s",
+            quiet,
+            verbose,
+            follow_redirects,
+            skip_nmap_scan
+        )
+
+        for warning in CLI_PREPROCESS_WARNINGS:
+            logger.warning(warning)
 
         target = target.lower()
         try:
@@ -138,9 +220,11 @@ def main(target,
         except LumenException as e:
             logger.critical(str(e))
             exit(9)
+        logger.debug("Validated required external executables")
         HelpUtilities.validate_wordlist_args(proxy_list, wordlist, subdomain_list)
         HelpUtilities.validate_proxy_args(tor_routing, proxy, proxy_list)
         HelpUtilities.create_output_directory(outdir)
+        logger.debug("Output directory prepared at %s", outdir)
 
         if tor_routing:
             logger.info("{} Testing that Tor service is up...".format(COLORED_COMBOS.NOTIFY))
@@ -155,8 +239,25 @@ def main(target,
 
         # TODO: Sanitize delay argument
 
-        dns_records = tuple(dns_records.split(","))
+        parsed_dns_records = [record.strip().upper() for record in dns_records.split(",") if record.strip()]
+        invalid_dns_records = [record for record in parsed_dns_records if record not in VALID_DNS_RECORDS]
+        dns_records = tuple(record for record in parsed_dns_records if record in VALID_DNS_RECORDS)
+
+        if invalid_dns_records:
+            logger.warning(
+                "Ignoring invalid DNS record types: {}".format(", ".join(invalid_dns_records))
+            )
+
+        if not dns_records:
+            dns_records = DEFAULT_DNS_RECORDS
+            logger.info(
+                "{} No valid DNS record types provided; using defaults {}".format(
+                    COLORED_COMBOS.NOTIFY, ",".join(DEFAULT_DNS_RECORDS)
+                )
+            )
+        logger.debug("Resolved DNS record list: %s", ",".join(dns_records))
         ignored_response_codes = tuple(int(code) for code in ignored_response_codes.split(","))
+        logger.debug("Ignored response codes: %s", ignored_response_codes)
 
         if port:
             HelpUtilities.validate_port_range(port)
@@ -164,11 +265,21 @@ def main(target,
         # ------ /Arg validation ------
 
         if cookies:
-            try:
-                cookies = HelpUtilities.parse_cookie_arg(cookies)
-            except LumenException as e:
-                logger.critical("{}{}{}".format(COLOR.RED, str(e), COLOR.RESET))
-                exit(2)
+            if ":" not in cookies:
+                if cookies in {"-fr", "--follow-redirects"}:
+                    follow_redirects = True
+                    logger.debug("Promoted stray follow-redirects flag into option handling")
+                logger.warning(
+                    "Cookies must be supplied as comma separated key:value pairs. Ignoring provided cookies option."
+                )
+                cookies = None
+            else:
+                try:
+                    cookies = HelpUtilities.parse_cookie_arg(cookies)
+                except LumenException as e:
+                    logger.warning("{}{}{}".format(COLOR.YELLOW, str(e), COLOR.RESET))
+                    cookies = None
+        logger.debug("Cookies configured: %s", bool(cookies))
 
         # Set Request Handler instance
         request_handler = RequestHandler(
@@ -176,6 +287,12 @@ def main(target,
             tor_routing=tor_routing,
             single_proxy=proxy,
             cookies=cookies
+        )
+        logger.debug(
+            "Request handler initialised (tor_routing=%s, proxy_list=%s, single_proxy=%s)",
+            tor_routing,
+            bool(proxy_list),
+            bool(proxy)
         )
 
         if tor_routing:
@@ -197,6 +314,9 @@ def main(target,
         try:
             host = Host(target=target, dns_records=dns_records)
             host.parse()
+            logger.debug(
+                "Host parsing complete: target=%s, protocol=%s, port=%s", host.target, host.protocol, host.port
+            )
         except HostHandlerException as e:
             logger.critical("{}{}{}".format(COLOR.RED, str(e), COLOR.RESET))
             exit(11)
@@ -215,6 +335,7 @@ def main(target,
                 nmap_thread = threading.Thread(target=VulnersScanner.run, args=(nmap_vulners_scan,))
                 # Run NmapVulners scan in the background
                 nmap_thread.start()
+                logger.debug("Started NmapVulners thread (port_range=%s, vulners_path=%s)", port, vulners_path)
             else:
                 logger.info("\n{} Setting Nmap scan to run in the background".format(COLORED_COMBOS.INFO))
                 nmap_scan = NmapScan(
@@ -227,11 +348,19 @@ def main(target,
                 nmap_thread = threading.Thread(target=Scanner.run, args=(nmap_scan,))
                 # Run Nmap scan in the background. Can take some time
                 nmap_thread.start()
+                logger.debug(
+                    "Started Nmap thread (port_range=%s, full_scan=%s, scripts=%s, services=%s)",
+                    port,
+                    full_scan,
+                    scripts,
+                    services
+                )
         if not skip_nmap_scan:
             if nmap_thread.is_alive():
                 logger.info("{} All scans done. Waiting for Nmap scan to wrap up…".format(
                     COLORED_COMBOS.INFO))
                 nmap_thread.join()  # Improved: Use join() instead of sleep loop for efficiency
+                logger.debug("Background Nmap thread joined (initial wait)")
 
         # Run first set of checks - TLS, Web/WAF Data, DNS data
         waf = WAF(host)
@@ -246,11 +375,26 @@ def main(target,
         )
 
         main_loop.run_until_complete(asyncio.wait(tasks))
+        logger.debug("Core reconnaissance tasks completed")
 
         # Second set of checks - URL fuzzing, Subdomain enumeration
         if not no_url_fuzzing:
-            fuzzer = URLFuzzer(host, ignored_response_codes, threads, wordlist, follow_redirects)
-            main_loop.run_until_complete(fuzzer.fuzz_all())
+            fuzzer = URLFuzzer(
+                host,
+                wordlist_path=wordlist,
+                num_threads=threads,
+                ignored_codes=ignored_response_codes,
+                follow_redirects=follow_redirects,
+                quiet=quiet,
+                console_level=log_level,
+            )
+            main_loop.run_until_complete(
+                fuzzer.fuzz(
+                    sub_domain=False,
+                    log_file_path="{}/url_fuzz.txt".format(host.target)
+                )
+            )
+            logger.debug("URL fuzzing completed")
 
         if not host.is_ip:
             sans = tls_info_scanner.sni_data.get("SANs")
@@ -264,12 +408,14 @@ def main(target,
                 no_sub_enum=no_sub_enum
             )
             main_loop.run_until_complete(subdomain_enumerator.run())
+            logger.debug("Subdomain enumeration completed")
 
         if not skip_nmap_scan:
             if nmap_thread.is_alive():
                 logger.info("{} All scans done. Waiting for Nmap scan to wrap up. "
                             "Time left may vary depending on scan type and port range".format(COLORED_COMBOS.INFO))
                 nmap_thread.join()  # Improved: Use join() instead of sleep loop for efficiency
+                logger.debug("Background Nmap thread joined (final wait)")
 
         logger.info("\n{}### Lumen scan finished ###{}\n".format(COLOR.GRAY, COLOR.RESET))
         os.system("stty sane")
@@ -292,4 +438,5 @@ def main(target,
         exit(42)
 
 if __name__ == "__main__":
-        main()
+    _preprocess_cli_args()
+    main()

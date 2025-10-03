@@ -1,5 +1,5 @@
 import logging
-from os import path
+from pathlib import Path
 from sys import stdout
 from lumen_src.utils.singleton import Singleton
 
@@ -18,12 +18,21 @@ class SystemOutLogger(metaclass=Singleton):
     def get_logger(self):
         logger = logging.getLogger("LumenSystemOutLogger")
         logger.setLevel(self.level)
+        logger.propagate = False
 
-        out_handler = logging.StreamHandler(stdout)
-        formatter = logging.Formatter('%(message)s')
-        out_handler.setFormatter(formatter)
-        logger.addHandler(out_handler)
+        if not logger.handlers:
+            out_handler = logging.StreamHandler(stdout)
+            formatter = logging.Formatter(
+                fmt="%(asctime)s | %(levelname)s | %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S"
+            )
+            out_handler.setFormatter(formatter)
+            logger.addHandler(out_handler)
         return logger
+
+    def set_level(self, level):
+        self.level = level
+        self.logger.setLevel(level)
 
     def debug(self, *args, **kwargs):
         self.logger.debug(*args, **kwargs)
@@ -50,18 +59,24 @@ class Logger:
     """
 
     def __init__(self, outfile):
-        self.outfile = outfile
+        self.outfile = Path(outfile).expanduser()
+        self.outfile.parent.mkdir(parents=True, exist_ok=True)
         self.stout_logger = SystemOutLogger()
         self.logger = self.get_logger()
 
     def get_logger(self):
-        logger = logging.getLogger(self.__str__())
+        logger = logging.getLogger(str(self.outfile))
         logger.setLevel("DEBUG")
+        logger.propagate = False
 
-        out_handler = logging.FileHandler(self.outfile)
-        formatter = logging.Formatter('%(message)s')
-        out_handler.setFormatter(formatter)
-        logger.addHandler(out_handler)
+        if not logger.handlers:
+            out_handler = logging.FileHandler(self.outfile)
+            formatter = logging.Formatter(
+                fmt="%(asctime)s | %(levelname)s | %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S"
+            )
+            out_handler.setFormatter(formatter)
+            logger.addHandler(out_handler)
         return logger
 
     def debug(self, *args, **kwargs):

@@ -1,5 +1,6 @@
 import os
 import distutils.spawn
+from pathlib import Path
 from platform import system
 from collections import Counter
 from subprocess import PIPE, check_call, CalledProcessError
@@ -10,7 +11,7 @@ from lumen_src.utils.request_handler import RequestHandler
 
 class HelpUtilities:
 
-    PATH = ""
+    PATH: Path | None = None
 
     @classmethod
     def validate_target_is_up(cls, host):
@@ -55,7 +56,7 @@ class HelpUtilities:
             raise FileNotFoundError("Not a valid file path, {}".format(wordlist))
 
         if subdomain_list and not os.path.isfile(subdomain_list):
-            raise FileNotFoundError("Not a valid file path, {}".format(wordlist))
+            raise FileNotFoundError("Not a valid file path, {}".format(subdomain_list))
 
     @classmethod
     def validate_port_range(cls, port_range):
@@ -76,11 +77,17 @@ class HelpUtilities:
                                    "--tor-routing, --proxy-list, --proxy")
 
     @classmethod
-    def determine_verbosity(cls, quiet):
+    def determine_verbosity(cls, quiet, verbosity=0):
         if quiet:
             return "CRITICAL"
-        else:
-            return "INFO"
+
+        if verbosity is None:
+            verbosity = 0
+
+        if verbosity >= 1:
+            return "DEBUG"
+
+        return "INFO"
 
     @classmethod
     def find_nmap_executable(cls):
@@ -109,15 +116,16 @@ class HelpUtilities:
     @classmethod
     def create_output_directory(cls, outdir):
         """Tries to create base output directory"""
-        cls.PATH = outdir
-        try:
-            os.mkdir(outdir)
-        except FileExistsError:
-            pass
+        base_path = Path(outdir).expanduser()
+        base_path.mkdir(parents=True, exist_ok=True)
+        cls.PATH = base_path
 
     @classmethod
     def get_output_path(cls, module_path):
-        return "{}/{}".format(cls.PATH, module_path)
+        base = cls.PATH or Path.cwd()
+        out_path = (base / module_path).expanduser()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        return str(out_path)
 
     @classmethod
     def confirm_traffic_routs_through_tor(cls):

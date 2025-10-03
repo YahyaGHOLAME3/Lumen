@@ -4,9 +4,12 @@ from asyncio.subprocess import PIPE, create_subprocess_exec
 from requests.exceptions import ConnectionError
 from lumen_src.utils.help_utils import HelpUtilities
 from lumen_src.utils.exceptions import LumenException
-from lumen_src.utils.logger import Logger
+from lumen_src.utils.logger import Logger, SystemOutLogger
 from lumen_src.utils.coloring import COLOR, COLORED_COMBOS
 from requests_doh import DNSOverHTTPSSession  # Requires pip install requests-doh
+
+stdout_logger = SystemOutLogger()
+
 
 class DNSHandler:
     resolver = resolver.Resolver()
@@ -23,11 +26,12 @@ class DNSHandler:
                 try:
                     answers = cls.resolver.resolve(domain, record, tcp=use_tcp)
                     for answer in answers:
-                        results.get(record).add(str(answer))
+                        results.setdefault(record, set()).add(str(answer))
                         if follow_cname and record == 'CNAME':
                             # Recursively query the CNAME target
                             cname_results = cls.query_dns([str(answer)], records, use_tcp)
-                            results.update(cname_results)
+                            for cname_record, cname_values in cname_results.items():
+                                results.setdefault(cname_record, set()).update(cname_values)
                 except (resolver.NoAnswer, resolver.NXDOMAIN, resolver.NoNameservers, exception.Timeout):
                     continue
         return {k: v for k, v in results.items() if v}
@@ -39,11 +43,11 @@ class DNSHandler:
             try:
                 return cls.query_dns(domains, records)
             except exception.Timeout:
-                Logger.error(f"DNS Query timed out (attempt {attempt + 1}). Retrying...")
+                stdout_logger.error(f"DNS Query timed out (attempt {attempt + 1}). Retrying...")
                 cls.set_nameservers(resolvers[attempt % len(resolvers)])
                 time.sleep(2 ** attempt)  # Exponential backoff
         # Final fallback to DoH
-        Logger.info("Switching to DNS over HTTPS as final fallback...")
+        stdout_logger.info("Switching to DNS over HTTPS as final fallback...")
         return cls.query_doh(domains, records)
 
     @classmethod
@@ -73,7 +77,7 @@ class DNSHandler:
             zone = resolver.zone_for_name(domain, resolver=cls.resolver, tcp=True)
             return {str(rrset.name): str(rrset) for rrset in zone}
         except (resolver.NoNameservers, resolver.NXDOMAIN):
-            Logger.error("Zone transfer failed")
+            stdout_logger.error("Zone transfer failed")
             return {}
 
     @classmethod

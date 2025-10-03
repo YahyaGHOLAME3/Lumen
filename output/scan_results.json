@@ -1,0 +1,23 @@
+{
+  "target_domain": "scanme.nmap.org",
+  "all_subdomains": [
+    "scanme.nmap.org"
+  ],
+  "alive_hosts": [
+    "scanme.nmap.org"
+  ],
+  "sensitive_subdomains": [],
+  "vulnerability_results": [
+    {
+      "domain": "scanme.nmap.org",
+      "url": "http://scanme.nmap.org",
+      "status_code": 200,
+      "title": "Go ahead and ScanMe!",
+      "scans": {
+        "nikto": {
+          "error": ""
+        }
+      }
+    }
+  ]
+}
