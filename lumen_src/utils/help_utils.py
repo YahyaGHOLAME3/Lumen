@@ -1,5 +1,7 @@
 import os
+import json
 import distutils.spawn
+from datetime import datetime
 from pathlib import Path
 from platform import system
 from collections import Counter
@@ -12,6 +14,8 @@ from lumen_src.utils.request_handler import RequestHandler
 class HelpUtilities:
 
     PATH: Path | None = None
+    _DASHBOARD_STATE_FILE = Path(__file__).resolve().parents[3] / "dashboard" / "state.json"
+    _RUN_DIRECTORIES: dict[str, Path] = {}
 
     @classmethod
     def validate_target_is_up(cls, host):
@@ -119,13 +123,70 @@ class HelpUtilities:
         base_path = Path(outdir).expanduser()
         base_path.mkdir(parents=True, exist_ok=True)
         cls.PATH = base_path
+        cls._RUN_DIRECTORIES = {}
+        cls._update_dashboard_state(base_path)
 
     @classmethod
     def get_output_path(cls, module_path):
         base = cls.PATH or Path.cwd()
-        out_path = (base / module_path).expanduser()
+        path_obj = Path(module_path)
+
+        if path_obj.is_absolute():
+            out_path = path_obj.expanduser()
+        else:
+            parts = path_obj.parts
+            if parts:
+                if len(parts) == 1:
+                    out_path = (base / path_obj).expanduser()
+                else:
+                    target = parts[0]
+                    run_dir = cls._get_run_directory(target, base)
+                    remaining = Path(*parts[1:])
+                    out_path = (run_dir / remaining).expanduser()
+            else:
+                out_path = (base / path_obj).expanduser()
+
         out_path.parent.mkdir(parents=True, exist_ok=True)
         return str(out_path)
+
+    @classmethod
+    def _get_run_directory(cls, target: str, base: Path) -> Path:
+        if target not in cls._RUN_DIRECTORIES:
+            timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+            target_dir = base / target
+            run_dir = target_dir / timestamp
+            suffix = 1
+            while run_dir.exists():
+                suffix += 1
+                run_dir = target_dir / f"{timestamp}-{suffix}"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            cls._RUN_DIRECTORIES[target] = run_dir
+        return cls._RUN_DIRECTORIES[target]
+
+    @classmethod
+    def get_scan_directory(cls, target: str) -> str:
+        base = cls.PATH or Path.cwd()
+        run_dir = cls._get_run_directory(target, base)
+        return str(run_dir)
+
+    @classmethod
+    def _update_dashboard_state(cls, base_path: Path) -> None:
+        state_file = cls._DASHBOARD_STATE_FILE
+        try:
+            state_file.parent.mkdir(parents=True, exist_ok=True)
+            state: dict[str, str]
+            if state_file.exists():
+                try:
+                    state = json.loads(state_file.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    state = {}
+            else:
+                state = {}
+            state["output_root"] = str(base_path)
+            state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        except OSError:
+            # Dashboard directory may not be present; ignore silently.
+            pass
 
     @classmethod
     def confirm_traffic_routs_through_tor(cls):

@@ -4,6 +4,10 @@ import threading
 import click
 import os
 import sys
+import json
+import webbrowser
+from datetime import datetime
+from pathlib import Path
 
 # Add the project root to Python path so lumen_src can be found
 sys.path.insert(0, os.path.abspath(os.path.dirname(os.path.dirname(__file__))))
@@ -15,6 +19,8 @@ from lumen_src.utils.logger import SystemOutLogger
 from lumen_src.utils.help_utils import HelpUtilities
 from lumen_src.lib.fuzzer import URLFuzzer
 from lumen_src.lib.test_nikto import Nikto
+from dashboard import ensure_dashboard_running, DEFAULT_PORT as DASHBOARD_DEFAULT_PORT
+from lumen_src.utils.run_summary import build_run_summary, write_run_summary, update_manifest
 from lumen_src.lib.host import Host
 from lumen_src.lib.scanner import Scanner, NmapScan, NmapVulnersScan, VulnersScanner
 from lumen_src.lib.sub_domain import SubDomainEnumerator
@@ -166,6 +172,13 @@ def intro(logger):
               default=True,
               show_default=True,
               help="Run Nikto against the primary web service.")
+@click.option("--dashboard/--no-dashboard",
+              default=True,
+              show_default=True,
+              help="Launch the Streamlit dashboard automatically.")
+@click.option("--dashboard-port", default=DASHBOARD_DEFAULT_PORT,
+              show_default=True,
+              help="Port where the dashboard should listen.")
 # @click.option("-d", "--delay", default="0.25-1",
 #               help="Min and Max number of seconds of delay to be waited between requests\n"
 #                    "Defaults to Min: 0.25, Max: 1. Specified in the format of Min-Max")
@@ -198,6 +211,8 @@ def main(target,
          no_sub_enum,
          skip_nmap_scan,
          nikto_scan,
+         dashboard,
+         dashboard_port,
          # delay,
          outdir,
          quiet,
@@ -315,6 +330,27 @@ def main(target,
         main_loop = asyncio.get_event_loop()
 
         logger.info("{}### Lumen Scan Started ###{}\n".format(COLOR.GRAY, COLOR.RESET))
+
+        dashboard_url = None
+        dashboard_port_assigned = None
+        if dashboard:
+            dashboard_port_assigned, _ = ensure_dashboard_running(port=dashboard_port)
+            if dashboard_port_assigned:
+                dashboard_url = f"http://localhost:{dashboard_port_assigned}"
+                logger.info("{} Dashboard available at {}".format(
+                    COLORED_COMBOS.INFO,
+                    dashboard_url,
+                ))
+                try:
+                    webbrowser.open_new_tab(dashboard_url)
+                except Exception:  # pragma: no cover - best effort only
+                    logger.debug("Unable to open browser automatically", exc_info=True)
+            else:
+                logger.warning(
+                    "{} Failed to launch dashboard automatically. Run 'streamlit run dashboard/app.py' manually if needed.".format(
+                        COLORED_COMBOS.BAD
+                    )
+                )
         logger.info("{} Trying to gather information about host: {}".format(COLORED_COMBOS.INFO, target))
 
         # TODO: Populate array when multiple targets are supported
@@ -328,6 +364,8 @@ def main(target,
         except HostHandlerException as e:
             logger.critical("{}{}{}".format(COLOR.RED, str(e), COLOR.RESET))
             exit(11)
+
+        run_dir = Path(HelpUtilities.get_scan_directory(host.target))
 
         if not skip_health_check:
             try:
@@ -454,7 +492,7 @@ def main(target,
 
         if subdomain_cve_scan:
             from lumen_src.lib.subdomain_cve_scanner import SubdomainCVEScanner
-            target_root = HelpUtilities.get_output_path(host.target)
+            target_root = HelpUtilities.get_scan_directory(host.target)
             SubdomainCVEScanner(target_root=target_root).scan()
         else:
             logger.debug("Subdomain CVE scan skipped by CLI flag")
@@ -467,6 +505,36 @@ def main(target,
                 ))
                 thread.join()
                 logger.debug("Background %s thread joined", label.lower())
+
+        metadata = {
+            "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "skip_nmap_scan": bool(skip_nmap_scan),
+            "vulners_nmap_scan": bool(vulners_nmap_scan),
+            "nikto_scan": bool(nikto_scan),
+            "url_fuzzing_enabled": not no_url_fuzzing,
+            "subdomain_bruteforce_enabled": not no_sub_enum,
+            "subdomain_cve_scan": bool(subdomain_cve_scan),
+            "dashboard_enabled": bool(dashboard),
+            "dashboard_port": dashboard_port_assigned,
+            "dashboard_url": dashboard_url,
+            "target": host.target,
+            "run_id": run_dir.name,
+            "run_path": str(run_dir),
+        }
+        metadata_path = Path(HelpUtilities.get_output_path(f"{host.target}/scan_metadata.json"))
+        try:
+            with metadata_path.open("w", encoding="utf-8") as fh:
+                json.dump(metadata, fh, indent=2)
+        except OSError:
+            logger.debug("Unable to write scan metadata", exc_info=True)
+
+        try:
+            summary = build_run_summary(run_dir, metadata)
+            write_run_summary(run_dir, summary)
+            base_dir = Path(HelpUtilities.PATH) if HelpUtilities.PATH else run_dir.parent.parent
+            update_manifest(base_dir, summary)
+        except Exception:
+            logger.debug("Failed to generate structured summary", exc_info=True)
 
         logger.info("\n{}### Lumen scan finished ###{}\n".format(COLOR.GRAY, COLOR.RESET))
         os.system("stty sane")

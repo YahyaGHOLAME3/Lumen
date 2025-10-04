@@ -14,7 +14,7 @@ setup(
     author_email="gholame.yahya@gmail.com",
 
 
-    packages=find_packages(include=["lumen_src", "lumen_src.*"]),
+    packages=find_packages(include=["lumen_src", "lumen_src.*", "dashboard", "dashboard.*"]),
 
     python_requires=">=3.10",
     install_requires=[
@@ -33,15 +33,21 @@ setup(
         "tldextract>=5.1",
         "tqdm>=4.66",
         "xmltodict>=0.13",
+        "pandas>=2.2",
+        "plotly>=5.20",
+        "streamlit>=1.36",
     ],
 
     include_package_data=True,
-    package_data={"lumen_src": ["wordlists/*"]},
+    package_data={
+        "lumen_src": ["wordlists/*"],
+        "dashboard": ["*.json"],
+    },
 
     entry_points={
         "console_scripts": [
-            # on pointe vers lumen_main.py
             "lumen = lumen_src.lumen_main:main",
+            "lumen-dashboard = dashboard.launch:main",
         ]
     },
 )

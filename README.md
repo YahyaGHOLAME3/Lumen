@@ -63,6 +63,19 @@ lumen --help
 ```
 This keeps the code editable while giving you the same `lumen` command line interface on any machine you clone the project to.
 
+## Recon Dashboard
+
+Every `lumen` run now launches the Streamlit dashboard automatically (defaults to `http://localhost:8501`) and opens it in your default browser. Use `--no-dashboard` if you’re running headless or prefer not to start the UI.
+
+You can still launch it manually when needed:
+
+```bash
+streamlit run dashboard/app.py         # direct runner
+lumen-dashboard                        # console script after pip install
+```
+
+The sidebar lets you point the dashboard at any scan output directory. Every new Lumen run updates `dashboard/state.json`, so the UI always defaults to your latest `--outdir`. Each target view includes quick metrics, CVE tables, raw logs, and an embedded Nikto report when available.
+
 ## Usage
 ```text
 Usage: lumen [OPTIONS] TARGET
@@ -93,6 +106,10 @@ Options:
   --skip-nmap-scan                       Skip the default Nmap discovery scan
   --nikto-scan / --skip-nikto-scan       Run Nikto against the primary web
                                          service (default: enabled)
+  --dashboard / --no-dashboard           Auto-launch the dashboard (default:
+                                         enabled)
+  --dashboard-port INTEGER               Dashboard listener port (default:
+                                         8501)
   -fr, --follow-redirects                Follow redirects during fuzzing
   --tls-port INTEGER                     Port for TLS checks (default: 443)
   --skip-health-check                    Do not verify host availability before
@@ -110,10 +127,13 @@ Options:
 All core scanners (Nmap, Nmap + vulners, Nikto, TLS/WAF profiling, URL fuzzing, and subdomain recon) are active by default. Opt out with the `--skip-*`/`--no-*` flags if you need a lighter run.
 
 ## Output Layout
-Results are written under `<outdir>/<target>/` and include:
+Each scan is stored under `<outdir>/<target>/<YYYYMMDD-HHMMSS>/`, so older runs stay side-by-side with the latest. Inside a run directory you’ll find:
 - `nmap_scan.txt`, `nmap_vulners_scan.txt`, and `nikto_report.html`
 - `web_scan.txt`, `waf.txt`, `tls_report.txt`, `whois.txt`, and other module logs
 - `url_fuzz.txt`, `subdomains.txt`, and optional `cve_subdomains.txt`
+- `scan_metadata.json` capturing the enabled modules and dashboard URL for that execution
+- `summary.json` providing a structured view consumed by the dashboard
+- A root-level `manifest.json` that aggregates every run across all domains, keeping combined CVE/open-port/URL-hit totals up to date
 
 These files are plain text/HTML and can be shared with downstream tooling or attached to reports.
 
