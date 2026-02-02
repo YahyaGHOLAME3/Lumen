@@ -139,3 +139,6 @@ These files are plain text/HTML and can be shared with downstream tooling or att
 
 ## Support & Contributions
 Issues and pull requests are welcome. Please open an issue describing the bug or feature idea before submitting large changes.
+
+## License
+This project is licensed under the MIT License. See the `LICENSE` file for details.

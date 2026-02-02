@@ -12,7 +12,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Yahya Gholame",
     author_email="gholame.yahya@gmail.com",
-
+    license="MIT",
 
     packages=find_packages(include=["lumen_src", "lumen_src.*", "dashboard", "dashboard.*"]),
 
@@ -43,6 +43,7 @@ setup(
         "lumen_src": ["wordlists/*"],
         "dashboard": ["*.json"],
     },
+    license_files=("LICENSE",),
 
     entry_points={
         "console_scripts": [
@@ -50,4 +51,12 @@ setup(
             "lumen-dashboard = dashboard.launch:main",
         ]
     },
+    classifiers=[
+        "License :: OSI Approved :: MIT License",
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Operating System :: OS Independent",
+    ],
 )
